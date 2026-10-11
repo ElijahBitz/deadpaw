@@ -45,6 +45,7 @@ Video demonstration:
 
 - [ ] Simple drawing
 - [ ] Light video editing
+- [ ] Alternative skins
 - [ ] Manual background removal mode
 - [ ] Mobile support (maybe)
 - New heroes

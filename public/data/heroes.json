@@ -148,6 +148,21 @@
     ]
   },
   {
+    "name": "Doctrine",
+    "id": "doctrine",
+    "img": "/images/heroes/doctrine.png",
+    "items": [
+      "/images/items/doctrine/doctrine1.png",
+      "/images/items/doctrine/doctrine2.png",
+      "/images/items/doctrine/doctrine3.png",
+      "/images/items/doctrine/doctrine4.png",
+      "/images/items/doctrine/doctrine6.png",
+      "/images/items/doctrine/doctrine7.png",
+      "/images/items/doctrine/doctrine8.png",
+      "/images/items/doctrine/doctrine9.png"
+    ]
+  },
+  {
     "name": "Domina",
     "id": "domina",
     "img": "/images/heroes/domina.png",
