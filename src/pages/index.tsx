@@ -3,28 +3,34 @@ import Image from "next/image";
 import NavBar from "@/components/navbar";
 import Header from "@/components/header";
 import DefaultHead from "@/components/default-head";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { randomIntArray } from "@/helper";
-import KofiWidget from "@/components/kofi-widget";
+
+interface HeroPreview {
+  id: string,
+  name: string,
+  extra?: boolean
+}
 
 const Home = () => {
-  // Load example images
-  const [exampleIndices, setExampleIndices] = useState<number[]>([]);
-  const examplesLoaded = useRef(false);
+  // Load a few random hero portraits as a preview
+  const [previewHeroes, setPreviewHeroes] = useState<HeroPreview[]>([]);
   useEffect(() => {
-    // Only run on first mount or on remount
-    if (!examplesLoaded.current) {
-      const exampleCount = 4;
-      const minExampleIndex = 1;
-      const maxExampleIndex = 44;
-      setExampleIndices(randomIntArray(exampleCount, minExampleIndex, maxExampleIndex));
-    }
-    return () => { examplesLoaded.current = true; }
-  }, [exampleIndices]);
+    const controller = new AbortController();
+    const fetchHeroData = async () => {
+      try {
+        const response = await fetch("/data/deadlock/heroes.json", { signal: controller.signal });
+        const data = (await response.json() as HeroPreview[]).filter((hero) => !hero.extra);
+        const previewCount = Math.min(4, data.length);
+        setPreviewHeroes(randomIntArray(previewCount, 0, data.length - 1).map((index) => data[index]));
+      } catch { }
+    };
+    fetchHeroData();
+    return () => { controller.abort(); }
+  }, []);
 
   return (
     <div>
-      <KofiWidget />
       <DefaultHead />
       <NavBar currentPage="home" />
       <br />
@@ -33,20 +39,19 @@ const Home = () => {
         <Header />
         <hr />
 
-        <p>Here are some examples:</p>
+        <p>Pick from heroes like:</p>
         <div className="row">
           {
-            exampleIndices.map((index) => {
+            previewHeroes.map((hero) => {
               return (
-                <div className="col" key={`example${index}`}>
+                <div className="col" key={`preview${hero.id}`}>
                   <Image
                     className="img-fluid rounded border bg-body-secondary"
-                    src={`/images/examples/${index}.png`}
-                    alt={`Example ${index}`}
-                    width={400}
-                    height={0}
-                    placeholder="blur"
-                    blurDataURL="automatic" />
+                    src={`/images/deadlock/items/${hero.id}/card.png`}
+                    alt={hero.name}
+                    width={280}
+                    height={380} />
+                  <p><strong>{hero.name}</strong></p>
                 </div>
               )
             })
@@ -59,16 +64,15 @@ const Home = () => {
         </p>
 
         <p className="text-body-tertiary fst-italic">
-          This is an unofficial, fan-made project inspired by the game <strong>Overwatch®</strong>.
+          This is an unofficial, fan-made project inspired by the game <strong>Deadlock</strong>.
           <br />
-          <strong>Overwatch®</strong> and all related names, characters, and assets are registered trademarks of <strong>Blizzard Entertainment, Inc</strong>.
+          <strong>Deadlock</strong> and all related names, characters, and assets are trademarks of <strong>Valve Corporation</strong>.
 
           <br />
           <br />
 
-          If you like what you see, consider supporting this project
-          <br />
-          <iframe id="kofiframe" src="https://ko-fi.com/wingnight/?hidefeed=true&widget=true&embed=true&preview=true" style={{ border: "none", width: "100%", padding: "4px" }} height="712" title="wingnight"></iframe>
+          Forked from <a href="https://github.com/ThaiDuongVu/pawverwatch" className="text-info text-decoration-none">pawverwatch</a>.
+          If you like what you see, consider <a href="https://ko-fi.com/wingnight" className="text-info text-decoration-none">supporting its original developer</a>.
         </p>
       </div>
     </div>

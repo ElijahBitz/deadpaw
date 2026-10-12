@@ -1,31 +1,16 @@
-# pawverwatch <img src="/public/icon/icon.png" width="30" alt="icon" />
+# deadpaw <img src="/public/icon/icon.png" width="30" alt="icon" />
 
-![Vercel Deploy](https://img.shields.io/badge/vercel-deployed-green?logo=vercel&logoColor=white)
+Quickly turn any pet picture into your favorite **Deadlock** heroes.
 
-Quickly turn any pet picture into your favorite **Overwatch®** heroes.
-
-<p>
-  <img src="/public/images/readme/cat1.png" height="200" alt="cat"/>
-  <img align="top" src="/public/images/readme/arrow.png" height="50" alt="arrow"/>
-  <img src="/public/images/readme/mercy.png" height="200" alt="cat mercy">
-</p>
+A fork of **[pawverwatch](https://github.com/ThaiDuongVu/pawverwatch)** by [@wingnight_ow](https://www.tiktok.com/@wingnight_ow), with the Overwatch roster swapped for Deadlock's.
 
 ## Guide 💻
 
-How to use **pawverwatch <img src="/public/icon/icon.png" width="15" alt="icon" />**
-
-1. Go to **[pawver.watch](https://pawver.watch)**
-2. Upload a base pet image<br/><img src="/public/images/screenshots/3.png" width="400" alt="screenshot1"/>
-3. (Optional) Remove the background from the image<br/><img src="/public/images/screenshots/4.png" width="400" alt="screenshot2"/>
-4. Click on a hero, then add the items you want <br/><img src="/public/images/screenshots/5.png" width="400" alt="screenshot3"/>
-5. Edit the added items <br/><img src="/public/images/screenshots/6.png" width="400" alt="screenshot4"/>
-6. Download using the export tool <br/><img src="/public/images/screenshots/8.png" width="400" alt="screenshot5"/>
-
-<hr />
-
-Video demonstration:
-
-<https://github.com/user-attachments/assets/70bce6ff-3deb-44d9-9daa-c3b92ef6377e>
+1. Upload a base pet image
+2. (Optional) Remove the background from the image
+3. Click on a hero, then add the items you want (portraits, head sticker, ability badges, name plate)
+4. Edit the added items
+5. Download using the export tool
 
 ## Features 💡
 
@@ -35,7 +20,7 @@ Video demonstration:
 - [x] Basic image manipulation (move, rotate, scale)
 - [x] Advanced image manipulation (flip, reset, duplicate, delete)
 - [x] Image layer control
-- [x] Map background
+- [x] Hero and city backgrounds
 - [x] Hero image items
 - [x] Download image
 - [x] Save image to favorites
@@ -52,12 +37,43 @@ Video demonstration:
 
 ## Local build 🔨
 
-**pawverwatch <img src="/public/icon/icon.png" width="15" alt="icon" />** is a front-end, serverless application built using **[React <img src="/public/images/readme/react.png" width="15" alt="react" />](https://react.dev/)** and **[Next.js <img src="/public/images/readme/nextjs.png" width="15" alt="next" />](https://nextjs.org/)**. Hosting is done via **[Vercel <img src="/public/images/readme/vercel.png" width="15" alt="vercel" />](https://vercel.com/)**. You can run a local version if you have **[Node.js <img src="/public/images/readme/node.png" width="15" alt="node" />](https://nodejs.org/)** (v26.4.0 or newer) installed.
+**deadpaw <img src="/public/icon/icon.png" width="15" alt="icon" />** is a front-end, serverless application built using **[React <img src="/public/images/readme/react.png" width="15" alt="react" />](https://react.dev/)** and **[Next.js <img src="/public/images/readme/nextjs.png" width="15" alt="next" />](https://nextjs.org/)**. You can run a local version if you have **[Node.js <img src="/public/images/readme/node.png" width="15" alt="node" />](https://nodejs.org/)** (v26.4.0 or newer) installed.
 
-To run **pawverwatch <img src="/public/icon/icon.png" width="15" alt="icon" />** locally:
+To run **deadpaw <img src="/public/icon/icon.png" width="15" alt="icon" />** locally:
 
-1. Clone the repository `git clone https://github.com/ThaiDuongVu/pawverwatch.git`
-2. Move into the cloned folder `cd ./pawverwatch/`
-3. Install the required dependecies `npm install`
-4. Run `npm run dev`
-5. You should be able to access the project at **<http://localhost:3000>**
+1. Clone the repository `git clone https://github.com/ElijahBitz/deadpaw.git`
+2. Move into the cloned folder `cd ./deadpaw/`
+3. Download the game art `python3 scripts/fetch-deadlock-assets.py` (needs Python 3 and ImageMagick with SVG support, e.g. `librsvg2-bin`)
+4. Install the required dependecies `npm install`
+5. Run `npm run dev`
+6. You should be able to access the project at **<http://localhost:3000>**
+
+Or with Docker, which downloads the art as part of the image build:
+
+```
+docker compose up -d --build
+```
+
+## Updating heroes 🔁
+
+Hero art and data come from the community **[Deadlock API](https://deadlock-api.com)**, with renders, weapons, reference sheets, concept art, creatures and district screenshots from the **[Deadlock Wiki](https://deadlock.wiki)** and store screenshots from **Steam**. To pull in newly released heroes, run (needs Python 3 and ImageMagick with SVG support, e.g. `librsvg2-bin`):
+
+```
+python3 scripts/fetch-deadlock-assets.py
+```
+
+This regenerates `public/images/deadlock/` and `public/data/deadlock/`. These are not kept in the repository (they are Valve's artwork), so the script has to be run once after cloning.
+
+## Syncing with pawverwatch 🔀
+
+To pull in upstream's editor improvements, run:
+
+```
+scripts/sync-upstream.sh
+```
+
+It merges upstream's code but leaves out its Overwatch heroes, maps and examples, and keeps this fork's own README, home page and branding (see `.gitattributes`). Deadlock art lives in separate `deadlock` folders, so upstream adding characters never collides with it. Use this instead of GitHub's **Sync fork** button, which doesn't know any of that.
+
+## Disclaimer
+
+This is an unofficial, fan-made project. **Deadlock** and all related names, characters, and assets are trademarks of **Valve Corporation**.

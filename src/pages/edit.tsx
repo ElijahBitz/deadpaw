@@ -1,4 +1,4 @@
-import { SyntheticEvent, useState } from "react";
+import { SyntheticEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { initializeModel, removeBackground } from "@/background-remover";
 import NavBar from "@/components/navbar";
@@ -6,11 +6,13 @@ import DefaultHead from "@/components/default-head";
 import CustomModal from "@/components/custom-modal";
 import Playground from "@/components/playground/playground";
 import { useIsMobile } from "@/useIsMobile";
+import { clearDraft, DraftState, loadDraft, startDraft } from "@/draftStore";
 
 const Edit = () => {
   const isMobile = useIsMobile();
-  const [editState, setEditState] = useState("upload");
+  const [editState, setEditState] = useState("loading");
   // Edit process:
+  // 0. loading (checking for a saved draft)
   // 1. upload
   // 2. remove-bg
   // 3. playground
@@ -46,7 +48,7 @@ const Edit = () => {
             ?
             <div>
               <p className="text-body-tertiary fst-italic text-center">
-                Looks like you&apos;re using <strong>Pawverwatch</strong> on a mobile device, I recommend turning the device to landscape mode for the best experience.
+                Looks like you&apos;re using <strong>Deadpaw</strong> on a mobile device, I recommend turning the device to landscape mode for the best experience.
               </p>
             </div>
             :
@@ -92,9 +94,17 @@ const Edit = () => {
     });
   };
 
-  const goToPlayground = (noBackground = false) => {
-    setBaseImageURL(noBackground ? bgRemovedImageURL : baseImageURL);
+  const goToPlayground = async (noBackground = false) => {
+    const chosenURL = noBackground ? bgRemovedImageURL : baseImageURL;
+    setBaseImageURL(chosenURL);
     setEditState("playground");
+    // Keep the chosen photo so the edit survives a refresh
+    try {
+      const response = await fetch(chosenURL);
+      await startDraft(await response.blob());
+    } catch (error) {
+      console.error("Could not save draft", error);
+    }
   };
 
   const removeBGDisplay = () => {
@@ -144,8 +154,45 @@ const Edit = () => {
 
   //#region The edit playground
 
+  // Pick up where the user left off (e.g. after an accidental refresh)
+  const [draftState, setDraftState] = useState<DraftState | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const restoreDraft = async () => {
+      try {
+        const draft = await loadDraft();
+        if (cancelled) return;
+        if (draft) {
+          setBaseImageURL(URL.createObjectURL(draft.baseImage));
+          setDraftState(draft.state);
+          setEditState("playground");
+          return;
+        }
+      } catch (error) {
+        console.error("Could not restore draft", error);
+      }
+      if (!cancelled) setEditState("upload");
+    };
+    restoreDraft();
+    return () => { cancelled = true; }
+  }, []);
+
+  const startOver = async () => {
+    try {
+      await clearDraft();
+    } catch (error) {
+      console.error("Could not clear draft", error);
+    }
+    setDraftState(null);
+    setBaseImageFile(null);
+    setBaseImageURL("/images/placeholder.png");
+    setBgRemovedImageURL("/images/placeholder.png");
+    setBgRemovalDone(false);
+    setEditState("upload");
+  };
+
   const playgroundDisplay = () => {
-    return <Playground baseImageURL={baseImageURL} />
+    return <Playground baseImageURL={baseImageURL} initialState={draftState} onStartOver={startOver} />
   };
 
   //#endregion

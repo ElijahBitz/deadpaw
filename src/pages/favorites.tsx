@@ -7,7 +7,7 @@ import { removeStringFromArray } from "@/helper";
 import Image from "next/image";
 import Toast from "@/components/toast";
 
-export const FAVORITES_KEY = "pawverwatch-favorites";
+export const FAVORITES_KEY = "deadpaw-favorites";
 
 const Favorites = () => {
   const [favorites, setFavorites] = useState<string[]>([]);

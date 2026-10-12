@@ -5,16 +5,19 @@ interface MapModaProps {
   name: string,
   id: string,
   icon: string,
-  maps: [],
+  maps: string[],
+  // Optional caption per map, same order as maps
+  labels?: string[],
   onMapClicked: (map: string) => void
 }
 
-const MapModal = ({ name, id, icon, maps, onMapClicked }: MapModaProps) => {
-  const mapButton = (map: string) => {
+const MapModal = ({ name, id, icon, maps, labels, onMapClicked }: MapModaProps) => {
+  const mapButton = (map: string, label?: string) => {
     if (!map || map === "") return <div></div>
     return (
-      <button type="button" className="btn btn-secondary shadow-lg m-1" title={`${name} map`} onClick={() => onMapClicked(map)}>
-        <Image className="img-fluid" src={map} alt={`${name} item`} width={400} height={400} loading="lazy" />
+      <button type="button" className="btn btn-secondary shadow-lg m-1" title={label ?? `${name} background`} onClick={() => onMapClicked(map)}>
+        <Image className="img-fluid" src={map} alt={label ?? `${name} item`} width={400} height={400} loading="lazy" />
+        {label ? <div className="mt-1"><strong>{label}</strong></div> : <></>}
       </button>
     );
   }
@@ -26,8 +29,8 @@ const MapModal = ({ name, id, icon, maps, onMapClicked }: MapModaProps) => {
       const map2 = maps[i + 1];
       rows = [...rows,
       <div className="row" key={`itemRow${i}`}>
-        <div className="col-6">{mapButton(map1)}</div>
-        <div className="col-6">{mapButton(map2)}</div>
+        <div className="col-6">{mapButton(map1, labels?.[i])}</div>
+        <div className="col-6">{mapButton(map2, labels?.[i + 1])}</div>
       </div>
       ]
     }
@@ -39,8 +42,8 @@ const MapModal = ({ name, id, icon, maps, onMapClicked }: MapModaProps) => {
       <div className="modal-dialog modal-lg">
         <div className="modal-content">
           <div className="modal-header bg-body-tertiary">
-            <h5 className="modal-title" id={`${id}ModalLabel`}><strong>{name} maps</strong></h5>
-            <Image className="img-fluid bg-info rounded ms-2 p-1" src={icon} alt={`${name} modal`} width={30} height={30} />
+            <h5 className="modal-title" id={`${id}ModalLabel`}><strong>{name} backgrounds</strong></h5>
+            <Image className="img-fluid rounded ms-2" src={icon} alt={`${name} modal`} width={30} height={30} />
             <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div className="modal-body">

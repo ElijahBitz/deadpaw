@@ -1,2 +1,16 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Files this fork owns outright: when upstream pawverwatch changes them too, keep ours.
+# Needs the "ours" merge driver, which scripts/sync-upstream.sh sets up.
+README.md merge=ours
+public/data/devlogs.json merge=ours
+public/favicon.ico merge=ours
+public/icon/* merge=ours
+src/pages/index.tsx merge=ours
+src/components/default-head.tsx merge=ours
+src/components/footer.tsx merge=ours
+src/components/header.tsx merge=ours
+src/components/placeholder.tsx merge=ours
+src/components/title.tsx merge=ours
+src/components/watermark.tsx merge=ours

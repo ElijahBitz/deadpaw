@@ -6,7 +6,7 @@ const Watermark = () => {
       x={5}
       y={5}
       align="center"
-      text="made with pawverwatch"
+      text="made with deadpaw"
       fontSize={15}
       fontFamily="Helvetica"
       fill="white"

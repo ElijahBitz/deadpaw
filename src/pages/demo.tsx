@@ -12,7 +12,7 @@ const Demo = () => {
 
       <div className="container text-center">
         <h4>How to use <strong><Title /><Icon size={20} /></strong></h4>
-        <br />
+        <p className="text-body-tertiary fst-italic">Recorded on <a href="https://github.com/ThaiDuongVu/pawverwatch" className="text-info text-decoration-none">pawverwatch</a>, the Overwatch app this is forked from. The editor works the same way.</p>
         {/* <video src="/demo-sub.mp4" className="object-fit-none border rounded"></video> */}
         <div className="ratio ratio-16x9">
           <iframe src="/demo-sub.mp4" className="border border-5 border-warning rounded-4" allowFullScreen title="demo_video"></iframe>

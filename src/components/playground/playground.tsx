@@ -7,34 +7,41 @@ import { Stage as KonvaStage, Layer as KonvaLayer, Image as KonvaImage } from "r
 import ImageItem, { ImageProp } from "./image-item";
 import HeroModal from "./hero-modal";
 import MapModal from "./map-modal";
+import SnipModal from "./snip-modal";
 import { downloadFromURI } from "@/helper";
 import useImage from "use-image";
 import { showToast } from "@/helper";
 import Toast from "@/components/toast";
 import { FAVORITES_KEY } from "@/pages/favorites";
 import Watermark from "../watermark";
+import { DraftState, saveDraftState } from "@/draftStore";
 
 interface PlaygroundProps {
-  baseImageURL: string
+  baseImageURL: string,
+  initialState?: DraftState | null,
+  onStartOver: () => void
 }
 
 interface HeroData {
   id: string,
   name: string,
   img: string,
-  items: []
+  items: [],
+  // Sticker groups that aren't a hero (shop items, creatures...)
+  extra?: boolean
 }
 
 interface ModeData {
   name: string,
   id: string,
   img: string,
-  maps: []
+  maps: string[],
+  labels?: string[]
 }
 
 const DEFAULT_EXPORT_NAME = "paw";
 
-const Playground = ({ baseImageURL }: PlaygroundProps) => {
+const Playground = ({ baseImageURL, initialState, onStartOver }: PlaygroundProps) => {
   /* eslint-disable */
   let bootstrap = useState(null);
   useEffect(() => {
@@ -54,7 +61,7 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
     const uri = stageRef.current.toDataURL();
     downloadFromURI(uri, `${exportName === "" ? DEFAULT_EXPORT_NAME : exportName}.png`);
   }
-  const [exportName, setExportName] = useState("");
+  const [exportName, setExportName] = useState(initialState?.exportName ?? "");
 
   //#endregion
 
@@ -80,14 +87,17 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
 
   // #region Handle image operations
 
-  const initImages: ImageProp[] = [
-    // Always start with the base image
-    {
-      src: baseImageURL,
-      x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0,
-      id: "baseImg"
-    }
-  ];
+  const initImages: ImageProp[] = initialState
+    // Restored draft, the saved base image URL died with the previous page
+    ? initialState.images.map((img) => img.id === "baseImg" ? { ...img, src: baseImageURL } : img)
+    : [
+      // Always start with the base image
+      {
+        src: baseImageURL,
+        x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0,
+        id: "baseImg"
+      }
+    ];
   const [images, setImages] = useState<ImageProp[]>(initImages);
   const addImage = (image: ImageProp) => {
     setImages([...images, image]);
@@ -121,6 +131,12 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
 
   //#endregion
 
+  // #region Snip part of the selected image into its own sticker
+
+  const [snipSrc, setSnipSrc] = useState<string | null>(null);
+
+  // #endregion
+
   // #region Fetch hero data from JSON
 
   const [heroData, setHeroData] = useState<HeroData[]>([]);
@@ -128,7 +144,7 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
     const controller = new AbortController();
     const fetchHeroData = async () => {
       try {
-        const response = await fetch("/data/heroes.json", { signal: controller.signal });
+        const response = await fetch("/data/deadlock/heroes.json", { signal: controller.signal });
         const data = await response.json();
         setHeroData(data);
       } catch (error) {
@@ -139,15 +155,16 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
     fetchHeroData();
     return () => { controller.abort(); }
   }, []);
-  const [itemCount, setItemCount] = useState(0);
+  const [itemCount, setItemCount] = useState(initialState?.itemCount ?? 0);
   const heroButtonsDisplay = () => {
     return (
       <div className="w-75 mx-auto">
         <p><strong>Heroes</strong></p>
         {
-          heroData.map((hero) => {
+          heroData.map((hero, index) => {
             return (
               <div key={hero.name}>
+                {hero.extra && !heroData[index - 1]?.extra ? <p className="mt-3"><strong>Extras</strong></p> : <></>}
                 <button type="button" className="btn btn-secondary p-1 m-1" title={`${hero.name}`} data-bs-toggle="modal" data-bs-target={`#${hero.id}Modal`}>
                   <Image className="img-fluid rounded" src={`${hero.img}`} alt={`${hero.name}`} width={75} height={75} loading="lazy" />
                 </button>
@@ -185,7 +202,7 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
     const controller = new AbortController();
     const fetchHeroData = async () => {
       try {
-        const response = await fetch("/data/modes.json", { signal: controller.signal });
+        const response = await fetch("/data/deadlock/modes.json", { signal: controller.signal });
         const data = await response.json();
         setModeData(data);
       } catch (error) {
@@ -196,12 +213,12 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
     fetchHeroData();
     return () => { controller.abort(); }
   }, []);
-  const [backgroundSrc, setBackgroundSrc] = useState("");
+  const [backgroundSrc, setBackgroundSrc] = useState(initialState?.backgroundSrc ?? "");
   const [background] = useImage(backgroundSrc, "anonymous");
   const mapButtonsDisplay = () => {
     return (
       <div className="mx-auto">
-        <p><strong>Maps</strong></p>
+        <p><strong>Backgrounds</strong></p>
         {
           modeData.map((mode) => {
             return (
@@ -216,6 +233,7 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
                   name={mode.name}
                   icon={mode.img}
                   maps={mode.maps}
+                  labels={mode.labels}
                   onMapClicked={(map) => { setBackgroundSrc(map) }}
                 />
                 <br />
@@ -255,7 +273,23 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
 
   // #region Handle watermark
 
-  const [watermarkChecked, setWatermarkChecked] = useState(true);
+  const [watermarkChecked, setWatermarkChecked] = useState(initialState?.watermarkChecked ?? true);
+
+  // #endregion
+
+  // #region Keep the draft saved so it survives a refresh
+
+  const confirmStartOver = () => {
+    // Leave only once the modal has fully closed, otherwise its backdrop is left behind
+    const modal = document.getElementById("startOverModal");
+    if (!modal) return onStartOver();
+    modal.addEventListener("hidden.bs.modal", onStartOver, { once: true });
+  };
+
+  useEffect(() => {
+    saveDraftState({ images, backgroundSrc, itemCount, exportName, watermarkChecked })
+      .catch((error) => console.error("Could not save draft", error));
+  }, [images, backgroundSrc, itemCount, exportName, watermarkChecked]);
 
   // #endregion
 
@@ -420,6 +454,16 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
                 }}>
                 Duplicate <i className="bi bi-copy ms-1"></i>
               </button>
+              {/* Snip button */}
+              <button
+                type="button"
+                className="btn btn-secondary m-1"
+                disabled={selectedId == null}
+                data-bs-toggle="modal"
+                data-bs-target="#snipModal"
+                onClick={() => { setSnipSrc(selectedSrc) }}>
+                Snip <i className="bi bi-scissors ms-1"></i>
+              </button>
               {/* Delete button */}
               <button
                 type="button"
@@ -439,7 +483,7 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
               <input
                 className="form-check-input"
                 type="checkbox"
-                defaultChecked
+                checked={watermarkChecked}
                 onChange={(event) => { setWatermarkChecked(event.target.checked) }}
                 id="watermarkCheck" />
               <label className="form-check-label" htmlFor="watermarkCheck">
@@ -474,10 +518,53 @@ const Playground = ({ baseImageURL }: PlaygroundProps) => {
                 Download <i className="bi bi-cloud-arrow-down-fill ms-1"></i>
               </button>
             </div>
+            <hr />
+            <div className="text-center">
+              <div className="form-text mb-1">Your edit is saved automatically in this browser</div>
+              {/* Start over button */}
+              <button
+                type="button"
+                className="btn btn-outline-danger m-1"
+                data-bs-toggle="modal"
+                data-bs-target="#startOverModal">
+                Start over <i className="bi bi-arrow-repeat ms-1"></i>
+              </button>
+            </div>
           </div>
         </div>
       </div>
       <Toast id="savedToast" header="Saved!" message="Image added to favorites" />
+      <SnipModal
+        id="snipModal"
+        src={snipSrc}
+        onSnip={(dataURL) => {
+          addImage({
+            src: dataURL,
+            x: selectedPosition.x + 50, y: selectedPosition.y + 50,
+            scaleX: 1, scaleY: 1,
+            rotation: 0,
+            id: `item${itemCount}`
+          });
+          setItemCount(itemCount + 1);
+        }} />
+      {/* Start over confirmation */}
+      <div className="modal fade" id="startOverModal" tabIndex={-1} aria-labelledby="startOverModalLabel">
+        <div className="modal-dialog">
+          <div className="modal-content">
+            <div className="modal-header bg-body-tertiary">
+              <h5 className="modal-title" id="startOverModalLabel"><strong>Start over?</strong></h5>
+              <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div className="modal-body">
+              <p>This discards the current edit and takes you back to uploading a photo.</p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" data-bs-dismiss="modal">Keep editing</button>
+              <button type="button" className="btn btn-danger" data-bs-dismiss="modal" onClick={confirmStartOver}>Start over</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

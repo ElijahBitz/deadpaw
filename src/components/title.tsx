@@ -9,8 +9,8 @@ const Title = () => {
     return () => { themeSet.current = true; }
   }, [])
   return <strong>
-    <span className={theme === "dark" ? "title-white" : "title-grey"}>Pawver</span>
-    <span className="title-orange">watch</span>
+    <span className={theme === "dark" ? "title-white" : "title-grey"}>Dead</span>
+    <span className="title-orange">paw</span>
   </strong>
 };
 
