@@ -78,6 +78,7 @@ const Home = () => {
           <br />
 
           Deadpaw is made by <a href="https://github.com/ElijahBitz" className="text-info text-decoration-none">ElijahBitz</a> (<a href="https://killyourjockey.de" className="text-info text-decoration-none">killyourjockey.de</a>).
+          You can also <a href="https://ko-fi.com/elijahbitz" className="text-info text-decoration-none">support me on Ko-fi</a>.
           Any issues should be reported on <a href="https://github.com/ElijahBitz/deadpaw/issues" className="text-info text-decoration-none">GitHub</a>.
         </p>
       </div>

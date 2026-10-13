@@ -5,6 +5,7 @@ const Footer = () => {
   const issuesURL = `${repoURL}/issues`;
   const githubURL = "https://github.com/ElijahBitz";
   const portfolioURL = "https://killyourjockey.de";
+  const kofiURL = "https://ko-fi.com/elijahbitz";
 
   return (
     <footer className="footer mt-auto bg-body-tertiary">
@@ -16,6 +17,7 @@ const Footer = () => {
               Forked from <a href={upstreamURL} className="text-info text-decoration-none">pawverwatch</a> by <a href={authorURL} className="text-info text-decoration-none">@wingnight_ow</a>
               <br />
               Deadpaw by <a href={githubURL} className="text-info text-decoration-none" target="_blank">ElijahBitz</a> (<a href={portfolioURL} className="text-info text-decoration-none" target="_blank">killyourjockey.de</a>).
+              If you like it, consider <a href={kofiURL} className="text-info text-decoration-none" target="_blank">supporting me on Ko-fi</a>.
               Found a bug? Please <a href={issuesURL} className="text-info text-decoration-none" target="_blank">open an issue on GitHub</a>.
             </p>
           </div>
