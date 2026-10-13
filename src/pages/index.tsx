@@ -73,6 +73,12 @@ const Home = () => {
 
           Forked from <a href="https://github.com/ThaiDuongVu/pawverwatch" className="text-info text-decoration-none">pawverwatch</a>.
           If you like what you see, consider <a href="https://ko-fi.com/wingnight" className="text-info text-decoration-none">supporting its original developer</a>.
+
+          <br />
+          <br />
+
+          Deadpaw is made by <a href="https://github.com/ElijahBitz" className="text-info text-decoration-none">ElijahBitz</a> (<a href="https://killyourjockey.de" className="text-info text-decoration-none">killyourjockey.de</a>).
+          Any issues should be reported on <a href="https://github.com/ElijahBitz/deadpaw/issues" className="text-info text-decoration-none">GitHub</a>.
         </p>
       </div>
     </div>
