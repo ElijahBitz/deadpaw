@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
 };
 
 module.exports = {
+  // Images are served as they are and scaled by the browser, the server does no resizing
+  images: { unoptimized: true },
   async headers() {
     return [
       {

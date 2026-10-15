@@ -3,6 +3,21 @@ services:
     build: .
     image: deadpaw
     container_name: deadpaw
-    ports:
-      - "3000:3000"
+    # No published port: Nginx Proxy Manager reaches it over its network, as deadpaw:3000
+    networks:
+      - proxy
+    # Caps so a flood of requests can't starve the other services on this host
+    mem_limit: 512m
+    cpus: 2
+    pids_limit: 256
     restart: unless-stopped
+    volumes:
+      # Downloads kept across restarts, so the new-hero check on start only fetches what is new
+      - asset-cache:/app/.asset-cache
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  asset-cache:

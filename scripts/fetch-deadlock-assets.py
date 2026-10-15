@@ -6,13 +6,16 @@ Requires Python 3.9+ and ImageMagick (`convert`). Run from the repository root:
 
     python3 scripts/fetch-deadlock-assets.py
 
-Re-run whenever a new hero is released.
+With --if-new-heroes it only rebuilds when the API lists a hero the current data lacks
+(the container runs this on every start, so new heroes show up without a rebuild).
 """
 import hashlib
 import json
 import re
 import shutil
+import os
 import subprocess
+import sys
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -27,16 +30,21 @@ ROOT = Path(__file__).resolve().parent.parent
 PUBLIC = ROOT / "public"
 # Everything generated lives in its own "deadlock" folders, away from the paths upstream pawverwatch
 # uses for its Overwatch art, so merging upstream never touches it
-IMAGES = PUBLIC / "images" / "deadlock"
-DATA = PUBLIC / "data" / "deadlock"
+IMAGES_LIVE = PUBLIC / "images" / "deadlock"
+DATA_LIVE = PUBLIC / "data" / "deadlock"
+# Everything is built next to the live folders and swapped in at the end, so a failed run leaves them untouched
+IMAGES = IMAGES_LIVE.with_name("deadlock.new")
+DATA = DATA_LIVE.with_name("deadlock.new")
 CACHE = ROOT / ".asset-cache"
 
 BADGE_FILL = "#1c1917"
 GLYPH_FILL = "#f3e9d2"
 BACKDROP_FILL = "#14110f"
+STICKER_QUALITY = "85"
 
 STEAM_APP_DETAILS = "https://store.steampowered.com/api/appdetails?appids=1422450"
 MAX_CONCEPT_ART = 4
+WORKERS = int(os.environ.get("ASSET_WORKERS", "8"))
 
 # Wiki screenshots and artwork that work as backgrounds (hand-picked, the categories are mixed)
 WIKI_BACKGROUNDS = {
@@ -65,27 +73,44 @@ CITY_BACKGROUNDS = [
 ]
 
 
-def fetch(url: str) -> Path:
-    """Download a URL into the cache (once) and return the local path."""
+def fetch(url: str, refresh: bool = False) -> Path:
+    """Download a URL into the cache and return the local path.
+
+    Files are downloaded once. With refresh (for API answers, which change when heroes are added)
+    it is downloaded again, falling back to the cached copy when that fails."""
     name = re.sub(r"[^A-Za-z0-9._-]", "_", url.split("://", 1)[1])
     if len(name) > 150:
         name = name[:100] + "_" + hashlib.sha1(url.encode()).hexdigest()
     target = CACHE / name
-    if not target.exists():
+    if refresh or not target.exists():
         request = urllib.request.Request(url, headers={"User-Agent": "deadpaw-asset-fetcher"})
-        with urllib.request.urlopen(request, timeout=120) as response:
-            target.write_bytes(response.read())
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                body = response.read()
+        except OSError:
+            if not target.exists():
+                raise
+            print(f"Could not refresh {url}, using the cached copy", file=sys.stderr)
+        else:
+            partial = target.with_name(target.name + ".part")
+            partial.write_bytes(body)
+            partial.replace(target)
     return target
 
 
 def fetch_json(path: str):
-    return json.loads(fetch(f"{API}/{path}").read_text())
+    return json.loads(fetch(f"{API}/{path}", refresh=True).read_text())
+
+
+def local(url: str) -> Path:
+    """Where a generated /images/deadlock/... URL is being written during this run."""
+    return IMAGES / url.removeprefix("/images/deadlock/")
 
 
 def wiki_query(**params) -> list:
     query = urllib.parse.urlencode({"action": "query", "prop": "imageinfo", "iiprop": "url|size|mime",
                                     "format": "json", **params})
-    pages = json.loads(fetch(f"{WIKI_API}?{query}").read_text()).get("query", {}).get("pages", {})
+    pages = json.loads(fetch(f"{WIKI_API}?{query}", refresh=True).read_text()).get("query", {}).get("pages", {})
     return [page for page in pages.values() if page.get("imageinfo")]
 
 
@@ -145,7 +170,7 @@ def build_sticker_group(name: str, sources: list) -> dict:
         target = item_dir / f"{file_slug(file)}.png"
         convert(fetch(url), "-resize", "512x512>", target)
         produced.append(f"/images/deadlock/items/{group_id}/{target.name}")
-    convert(PUBLIC / produced[0].lstrip("/"), "-background", "none", "-resize", "128x128", "-gravity", "center",
+    convert(local(produced[0]), "-background", "none", "-resize", "128x128", "-gravity", "center",
             "-extent", "128x128", IMAGES / "heroes" / f"{group_id}.png")
     return {"name": name, "id": group_id, "img": f"/images/deadlock/heroes/{group_id}.png", "items": produced, "extra": True}
 
@@ -159,7 +184,7 @@ def build_mode(name: str, sources: list) -> dict:
     for file, url in sources:
         backdrop(fetch(url), map_dir / f"{file_slug(file)}.webp")
         maps.append(f"/images/deadlock/maps/{mode_id}/{file_slug(file)}.webp")
-    thumbnail(PUBLIC / maps[0].lstrip("/"), IMAGES / "modes" / f"{mode_id}.png")
+    thumbnail(local(maps[0]), IMAGES / "modes" / f"{mode_id}.png")
     return {"name": name, "id": f"{mode_id}backdrops", "img": f"/images/deadlock/modes/{mode_id}.png", "maps": maps}
 
 
@@ -199,6 +224,11 @@ def backdrop(image: Path, out: Path) -> None:
     convert(image, "-background", BACKDROP_FILL, "-flatten", "-resize", "1920x1920>", "-quality", "82", out)
 
 
+def large_sticker(image: Path, size: int, out: Path) -> None:
+    # The big renders are served as they are, so they're kept small as WebP (which keeps transparency)
+    convert(image, "-resize", f"{size}x{size}>", "-quality", STICKER_QUALITY, out)
+
+
 def thumbnail(image: Path, out: Path) -> None:
     convert(image, "-resize", "80x80^", "-gravity", "center", "-extent", "80x80", out)
 
@@ -217,58 +247,81 @@ def build_hero(hero: dict, items: dict, wiki_images: dict) -> dict:
                       ("critical", "hero_card_critical"), ("head", "icon_image_small")]:
         if images.get(key):
             shutil.copy(fetch(images[key]), item_dir / f"{name}.png")
-            produced.append(name)
+            produced.append(f"{name}.png")
     if (hero["name"], "fullbody") in wiki_images:
-        convert(fetch(wiki_images[(hero["name"], "fullbody")]), "-resize", "1024x1024>", item_dir / "fullbody.png")
-        produced.append("fullbody")
+        large_sticker(fetch(wiki_images[(hero["name"], "fullbody")]), 1024, item_dir / "fullbody.webp")
+        produced.append("fullbody.webp")
     if (hero["name"], "weapon") in wiki_images:
         convert(fetch(wiki_images[(hero["name"], "weapon")]), "-trim", "+repage", item_dir / "weapon.png")
-        produced.append("weapon")
+        produced.append("weapon.png")
     if (hero["name"], "reference") in wiki_images:
-        convert(fetch(wiki_images[(hero["name"], "reference")]), "-resize", "1400x1400>", item_dir / "reference.png")
-        produced.append("reference")
+        large_sticker(fetch(wiki_images[(hero["name"], "reference")]), 1400, item_dir / "reference.webp")
+        produced.append("reference.webp")
     for index in range(1, MAX_CONCEPT_ART + 1):
         if (hero["name"], f"concept{index}") in wiki_images:
-            convert(fetch(wiki_images[(hero["name"], f"concept{index}")]), "-resize", "1024x1024>",
-                    item_dir / f"concept{index}.png")
-            produced.append(f"concept{index}")
+            large_sticker(fetch(wiki_images[(hero["name"], f"concept{index}")]), 1024,
+                          item_dir / f"concept{index}.webp")
+            produced.append(f"concept{index}.webp")
     for index in range(1, 5):
         ability = items.get(hero["items"].get(f"signature{index}"))
         if ability and ability.get("image"):
             ability_badge(fetch(ability["image"]), color, item_dir / f"ability{index}.png")
-            produced.append(f"ability{index}")
+            produced.append(f"ability{index}.png")
     if images.get("name_image"):
         name_plate(fetch(images["name_image"]), color, item_dir / "name.png")
-        produced.append("name")
+        produced.append("name.png")
 
     background = None
     if images.get("background_image_webp"):
         background = f"/images/deadlock/maps/heroes/{hero_id}.webp"
-        backdrop(fetch(images["background_image_webp"]), PUBLIC / background.lstrip("/"))
+        backdrop(fetch(images["background_image_webp"]), local(background))
 
     return {
         "name": hero["name"],
         "id": hero_id,
         "img": f"/images/deadlock/heroes/{hero_id}.png",
-        "items": [f"/images/deadlock/items/{hero_id}/{name}.png" for name in produced],
+        "items": [f"/images/deadlock/items/{hero_id}/{name}" for name in produced],
         "background": background,
     }
 
 
+def missing_heroes(heroes: list) -> list:
+    """Names of heroes the API lists that the live data doesn't have yet."""
+    try:
+        current = json.loads((DATA_LIVE / "heroes.json").read_text())
+    except (OSError, ValueError):
+        return [hero["name"] for hero in heroes]
+    known = {hero["name"] for hero in current if not hero.get("extra")}
+    return [hero["name"] for hero in heroes if hero["name"] not in known]
+
+
+def swap_in(staged: Path, live: Path) -> None:
+    # Deleted rather than renamed aside: in a container, folders that came with the image can't be renamed
+    shutil.rmtree(live, ignore_errors=True)
+    staged.rename(live)
+
+
 def main() -> None:
     CACHE.mkdir(exist_ok=True)
-    for directory in ["heroes", "items", "maps", "modes"]:
-        shutil.rmtree(IMAGES / directory, ignore_errors=True)
+    heroes = sorted((h for h in fetch_json("heroes") if h["player_selectable"]), key=lambda h: h["name"])
+    if "--if-new-heroes" in sys.argv:
+        new = missing_heroes(heroes)
+        if not new:
+            print(f"All {len(heroes)} heroes already have assets")
+            return
+        print(f"New heroes: {', '.join(new)}, rebuilding assets")
+
+    for staged in [IMAGES, DATA]:
+        shutil.rmtree(staged, ignore_errors=True)
     for directory in ["heroes", "items", "maps/heroes", "modes"]:
         (IMAGES / directory).mkdir(parents=True)
-    DATA.mkdir(parents=True, exist_ok=True)
+    DATA.mkdir(parents=True)
 
-    heroes = sorted((h for h in fetch_json("heroes") if h["player_selectable"]), key=lambda h: h["name"])
     items = {item["class_name"]: item for item in fetch_json("items")}
 
     wiki_images = fetch_wiki_images([hero["name"] for hero in heroes])
 
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         built = list(pool.map(lambda hero: build_hero(hero, items, wiki_images), heroes))
 
     # Extra sticker groups: shop items and event stickers (Deadlock API), creatures and chalk doodles (wiki)
@@ -288,7 +341,7 @@ def main() -> None:
     hero_backgrounds = [(hero["name"], hero.pop("background")) for hero in built]
     hero_maps = [background for _, background in hero_backgrounds if background]
     hero_labels = [name for name, background in hero_backgrounds if background]
-    thumbnail(PUBLIC / hero_maps[0].lstrip("/"), IMAGES / "modes" / "hero.png")
+    thumbnail(local(hero_maps[0]), IMAGES / "modes" / "hero.png")
     modes = [
         {"name": "Hero", "id": "herobackdrops", "img": "/images/deadlock/modes/hero.png", "maps": hero_maps,
          "labels": hero_labels},
@@ -297,11 +350,13 @@ def main() -> None:
     for name, files in WIKI_BACKGROUNDS.items():
         urls = wiki_files(files)
         modes.append(build_mode(name, [(file, urls[file]) for file in files if file in urls]))
-    screenshots = json.loads(fetch(STEAM_APP_DETAILS).read_text())["1422450"]["data"]["screenshots"]
+    screenshots = json.loads(fetch(STEAM_APP_DETAILS, refresh=True).read_text())["1422450"]["data"]["screenshots"]
     modes.append(build_mode("Steam", [(f"steam-{shot['id']}", shot["path_full"]) for shot in screenshots]))
 
     (DATA / "heroes.json").write_text(json.dumps(built + extras, indent=2, ensure_ascii=False) + "\n")
     (DATA / "modes.json").write_text(json.dumps(modes, indent=2) + "\n")
+    swap_in(IMAGES, IMAGES_LIVE)
+    swap_in(DATA, DATA_LIVE)
     print(f"{len(built)} heroes with {sum(len(h['items']) for h in built)} stickers, "
           f"{len(extras)} extra groups with {sum(len(e['items']) for e in extras)} stickers, "
           f"{sum(len(m['maps']) for m in modes)} backgrounds in {len(modes)} groups")

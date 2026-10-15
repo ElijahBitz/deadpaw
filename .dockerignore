@@ -7,3 +7,5 @@ docker-compose.yml
 # Always fetched fresh inside the image build
 public/images/deadlock/
 public/data/deadlock/
+public/*/deadlock.new/
+__pycache__/
